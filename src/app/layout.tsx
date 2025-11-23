@@ -21,12 +21,22 @@ export default function RootLayout({
       <body className={inter.className}>
         <SidebarProvider>
           <AppSidebar />
-          <main className="w-full">
-            <div className="p-4 flex items-center gap-4 border-b">
-              <SidebarTrigger />
-              <h1 className="font-semibold text-lg">IntelliBiz Workspace</h1>
+          <main className="w-full min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
+            {/* Premium Header with Glassmorphism */}
+            <div className="sticky top-0 z-10 backdrop-blur-xl bg-background/80 border-b border-border/50 shadow-sm">
+              <div className="px-6 py-4 flex items-center gap-4">
+                <SidebarTrigger className="hover:bg-accent/50 transition-colors" />
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-1 rounded-full bg-gradient-to-b from-primary via-purple-500 to-blue-500"></div>
+                  <h1 className="font-bold text-xl bg-gradient-to-r from-primary via-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    IntelliBiz Workspace
+                  </h1>
+                </div>
+              </div>
             </div>
-            <div className="p-6">
+
+            {/* Content Area with Better Spacing */}
+            <div className="p-8 max-w-[1800px] mx-auto">
               {children}
             </div>
           </main>
