@@ -5,15 +5,76 @@ import { Agent } from "@/data/agents";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Play, RefreshCw, Copy, Check, Sparkles } from "lucide-react";
+import { Loader2, RefreshCw, Copy, Check, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { CustomerSupportForm } from "@/components/customer-support-form";
+import { ProactiveSurveyForm } from "@/components/proactive-survey-form";
+import { CustomerSentimentForm } from "@/components/customer-sentiment-form";
+import { MarketTrendForm } from "@/components/market-trend-form";
+import { LeadScoringForm } from "@/components/lead-scoring-form";
+import { ContentGapForm } from "@/components/content-gap-form";
+import { CompetitorTrackerForm } from "@/components/competitor-tracker-form";
+import { ChurnPreventionForm } from "@/components/churn-prevention-form";
+import { SeoOptimizerForm } from "@/components/seo-optimizer-form";
+import { LoyaltyProgramForm } from "@/components/loyalty-program-form";
+import { InfluencerEngagementForm } from "@/components/influencer-engagement-form";
+import { BrandReputationForm } from "@/components/brand-reputation-form";
 
 interface AgentInterfaceProps {
     agent: Omit<Agent, "icon">;
 }
 
 export function AgentInterface({ agent }: AgentInterfaceProps) {
+    // If this is the Customer Support Auto agent, use the comprehensive form
+    if (agent.id === "customer-support-auto") {
+        return <CustomerSupportForm />;
+    }
+
+    if (agent.id === "proactive-survey") {
+        return <ProactiveSurveyForm />;
+    }
+
+    if (agent.id === "customer-sentiment") {
+        return <CustomerSentimentForm />;
+    }
+
+    if (agent.id === "market-trend-monitor") {
+        return <MarketTrendForm />;
+    }
+
+    if (agent.id === "lead-scoring") {
+        return <LeadScoringForm />;
+    }
+
+    if (agent.id === "content-gap") {
+        return <ContentGapForm />;
+    }
+
+    if (agent.id === "competitor-tracker") {
+        return <CompetitorTrackerForm />;
+    }
+
+    if (agent.id === "churn-prevention") {
+        return <ChurnPreventionForm />;
+    }
+
+    if (agent.id === "seo-optimizer") {
+        return <SeoOptimizerForm />;
+    }
+
+    if (agent.id === "loyalty-program-optimizer") {
+        return <LoyaltyProgramForm />;
+    }
+
+    if (agent.id === "influencer-engagement") {
+        return <InfluencerEngagementForm />;
+    }
+
+    if (agent.id === "brand-reputation-guard") {
+        return <BrandReputationForm />;
+    }
+
+    // For other agents, use the simple interface
     const [input, setInput] = useState("");
     const [output, setOutput] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -25,12 +86,10 @@ export function AgentInterface({ agent }: AgentInterfaceProps) {
         setIsLoading(true);
         setOutput(null);
 
-        // Simulate API call delay
-        setTimeout(() => {
-            setIsLoading(false);
-            // In a real app, this would be the response from the backend agent
-            setOutput(agent.demoOutput);
-        }, 1500);
+        // Simulate API call delay for demo agents
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setOutput(agent.demoOutput);
+        setIsLoading(false);
     };
 
     const handleCopy = () => {
@@ -75,12 +134,12 @@ export function AgentInterface({ agent }: AgentInterfaceProps) {
                             {isLoading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Processing...
+                                    {agent.id === "customer-support-auto" ? "Processing..." : "Processing..."}
                                 </>
                             ) : (
                                 <>
                                     <Sparkles className="mr-2 h-4 w-4" />
-                                    Run Agent
+                                    {agent.id === "customer-support-auto" ? "Send to AI Agent" : "Run Agent"}
                                 </>
                             )}
                         </Button>
@@ -132,7 +191,11 @@ export function AgentInterface({ agent }: AgentInterfaceProps) {
                                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                                     </div>
                                 </div>
-                                <p className="text-sm font-medium">Agent is thinking...</p>
+                                <p className="text-sm font-medium">
+                                    {agent.id === "customer-support-auto"
+                                        ? "Calling AI agent API..."
+                                        : "Agent is thinking..."}
+                                </p>
                                 <div className="flex gap-1">
                                     <div className="h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }}></div>
                                     <div className="h-2 w-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -152,7 +215,11 @@ export function AgentInterface({ agent }: AgentInterfaceProps) {
                                         <Sparkles className="h-6 w-6 text-primary/50" />
                                     </div>
                                 </div>
-                                <p>Run the agent to see results here.</p>
+                                <p>
+                                    {agent.id === "customer-support-auto"
+                                        ? "Enter a customer query to get an AI-powered response"
+                                        : "Run the agent to see results here."}
+                                </p>
                             </div>
                         </div>
                     )}

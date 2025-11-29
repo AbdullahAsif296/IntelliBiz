@@ -50,7 +50,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
 
             <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
 
-            <AgentInterface agent={agentWithoutIcon} />
+            <AgentInterface key={agent.id} agent={agentWithoutIcon} />
         </div>
     );
 }
