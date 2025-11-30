@@ -106,19 +106,32 @@ export function CrossSellSuggestionForm() {
         setRecommendations(null);
 
         try {
+            // Build request body, only including defined values
+            const requestBody: any = {
+                endpoint: 'recommend',
+                product_id: productId,
+            };
+
+            // Only add optional fields if they have values
+            if (userId && userId.trim()) {
+                requestBody.user_id = userId;
+            }
+            if (sessionId && sessionId.trim()) {
+                requestBody.session_id = sessionId;
+            }
+            if (limit) {
+                requestBody.limit = parseInt(limit) || 3;
+            }
+            // Always include use_ml as it has a default value
+            requestBody.use_ml = useMl;
+
             const response = await fetch('/api/proxy/cross-sell', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'accept': 'application/json',
                 },
-                body: JSON.stringify({
-                    endpoint: 'recommend',
-                    product_id: productId,
-                    user_id: userId || undefined,
-                    session_id: sessionId || undefined,
-                    limit: parseInt(limit) || 3,
-                    use_ml: useMl
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
