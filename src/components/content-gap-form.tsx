@@ -372,14 +372,33 @@ export function ContentGapForm() {
                                 <TabsContent value="metrics" className="flex-1 overflow-y-auto p-6">
                                     {analysisData.metrics ? (
                                         <div className="grid grid-cols-2 gap-4">
-                                            {Object.entries(analysisData.metrics).map(([key, value]: [string, any]) => (
-                                                <div key={key} className="bg-card/50 border border-border/50 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2">
-                                                    <span className="text-xs font-semibold uppercase text-muted-foreground">{key.replace(/_/g, ' ')}</span>
-                                                    <span className="text-2xl font-bold text-primary">
-                                                        {typeof value === 'number' && value <= 1 ? (value * 100).toFixed(1) + '%' : value}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                            {Object.entries(analysisData.metrics).map(([key, value]: [string, any]) => {
+                                                // Handle different value types
+                                                let displayValue: string;
+                                                if (typeof value === 'number') {
+                                                    displayValue = value <= 1 ? (value * 100).toFixed(1) + '%' : value.toString();
+                                                } else if (typeof value === 'object' && value !== null) {
+                                                    // Convert object to formatted string
+                                                    displayValue = JSON.stringify(value, null, 2);
+                                                } else {
+                                                    displayValue = String(value ?? 'N/A');
+                                                }
+                                                
+                                                return (
+                                                    <div key={key} className="bg-card/50 border border-border/50 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2">
+                                                        <span className="text-xs font-semibold uppercase text-muted-foreground">{key.replace(/_/g, ' ')}</span>
+                                                        {typeof value === 'object' && value !== null ? (
+                                                            <pre className="text-xs font-mono text-primary whitespace-pre-wrap text-center w-full">
+                                                                {displayValue}
+                                                            </pre>
+                                                        ) : (
+                                                            <span className="text-2xl font-bold text-primary">
+                                                                {displayValue}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div className="text-center text-muted-foreground py-8">No metrics available.</div>

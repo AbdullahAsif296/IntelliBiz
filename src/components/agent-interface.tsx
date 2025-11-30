@@ -19,6 +19,8 @@ import { SeoOptimizerForm } from "@/components/seo-optimizer-form";
 import { LoyaltyProgramForm } from "@/components/loyalty-program-form";
 import { InfluencerEngagementForm } from "@/components/influencer-engagement-form";
 import { BrandReputationForm } from "@/components/brand-reputation-form";
+import { CrossSellSuggestionForm } from "@/components/cross-sell-suggestion-form";
+import { CompetitorAdDetectorForm } from "@/components/competitor-ad-detector-form";
 
 interface AgentInterfaceProps {
     agent: Omit<Agent, "icon">;
@@ -72,6 +74,14 @@ export function AgentInterface({ agent }: AgentInterfaceProps) {
 
     if (agent.id === "brand-reputation-guard") {
         return <BrandReputationForm />;
+    }
+
+    if (agent.id === "cross-sell-suggestion") {
+        return <CrossSellSuggestionForm />;
+    }
+
+    if (agent.id === "competitor-ad-detector") {
+        return <CompetitorAdDetectorForm />;
     }
 
     // For other agents, use the simple interface
