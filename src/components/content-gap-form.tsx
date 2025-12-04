@@ -19,7 +19,17 @@ import {
     Download,
     Target,
     Layers,
-    Lightbulb
+    Lightbulb,
+    TrendingUp,
+    TrendingDown,
+    Search,
+    Filter,
+    ArrowUp,
+    ArrowDown,
+    Info,
+    Zap,
+    Award,
+    AlertCircle
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -78,8 +88,74 @@ export function ContentGapForm() {
     const [error, setError] = useState<string | null>(null);
     const [analysisData, setAnalysisData] = useState<any | null>(null); // Flexible type for now
     const [runStatus, setRunStatus] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [priorityFilter, setPriorityFilter] = useState<string>("all");
+    const [sortBy, setSortBy] = useState<string>("default");
 
     const API_BASE_URL = "https://busked-schematically-amiyah.ngrok-free.dev";
+
+    // Helper function to normalize API response data
+    const normalizeRecommendations = (data: any): any[] => {
+        if (!data) return [];
+        
+        // If it's already an array, return it
+        if (Array.isArray(data)) {
+            return data.map((item: any) => ({
+                topic: item.topic || item.title || item.name || item.subject || item.content_topic || 'Untitled Topic',
+                priority: item.priority || item.urgency || item.importance || 'Medium',
+                reason: item.reason || item.description || item.details || item.explanation || item.rationale || item.why || item.recommendation || '',
+                // Include all other fields for debugging
+                ...item
+            }));
+        }
+        
+        // If it's an object, check for common array properties
+        if (typeof data === 'object') {
+            if (data.recommendations && Array.isArray(data.recommendations)) {
+                return normalizeRecommendations(data.recommendations);
+            }
+            if (data.data && Array.isArray(data.data)) {
+                return normalizeRecommendations(data.data);
+            }
+            if (data.items && Array.isArray(data.items)) {
+                return normalizeRecommendations(data.items);
+            }
+        }
+        
+        return [];
+    };
+
+    const normalizeGaps = (data: any): any[] => {
+        if (!data) return [];
+        
+        // If it's already an array, return it
+        if (Array.isArray(data)) {
+            return data.map((item: any) => ({
+                topic: item.topic || item.title || item.name || item.subject || item.content_topic || item.gap_topic || 'Untitled Gap',
+                current_coverage: item.current_coverage || item.coverage || item.current || item.our_coverage || 'Low',
+                competitor_coverage: item.competitor_coverage || item.competitor || item.competition_coverage || item.their_coverage || 'High',
+                gap_type: item.gap_type || item.type || item.category || '',
+                opportunity: item.opportunity || item.potential || item.impact || '',
+                // Include all other fields
+                ...item
+            }));
+        }
+        
+        // If it's an object, check for common array properties
+        if (typeof data === 'object') {
+            if (data.gaps && Array.isArray(data.gaps)) {
+                return normalizeGaps(data.gaps);
+            }
+            if (data.data && Array.isArray(data.data)) {
+                return normalizeGaps(data.data);
+            }
+            if (data.items && Array.isArray(data.items)) {
+                return normalizeGaps(data.items);
+            }
+        }
+        
+        return [];
+    };
 
     const handleDeliverableToggle = (item: string) => {
         setSelectedDeliverables(prev =>
@@ -100,14 +176,14 @@ export function ContentGapForm() {
         setRunStatus("Initializing analysis...");
 
         try {
-            // 1. Trigger Analysis
-            const runResponse = await fetch(`${API_BASE_URL}/run`, {
+            // 1. Trigger Analysis via proxy
+            const runResponse = await fetch('/api/proxy/content-gap', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'ngrok-skip-browser-warning': 'true'
                 },
                 body: JSON.stringify({
+                    action: 'run',
                     deliverables: selectedDeliverables,
                     expected_accuracy: accuracy,
                     recommendation_count_min: parseInt(minRecommendations),
@@ -116,47 +192,54 @@ export function ContentGapForm() {
             });
 
             if (!runResponse.ok) {
-                throw new Error(`Analysis trigger failed: ${runResponse.status}`);
+                const errorData = await runResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || `Analysis trigger failed: ${runResponse.status}`);
             }
 
             setRunStatus("Fetching results...");
 
-            // 2. Fetch Results (Package)
-            // We'll try to fetch the package immediately. In a real scenario, we might need to poll.
-            // Assuming the POST /run is synchronous or fast enough for this demo.
-            // If not, we might need to fetch separate endpoints.
-
-            // Let's fetch recommendations and gaps separately to be safe/modular
-            const [recsRes, gapsRes, metricsRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/recommendations`, { headers: { 'ngrok-skip-browser-warning': 'true' } }),
-                fetch(`${API_BASE_URL}/gaps`, { headers: { 'ngrok-skip-browser-warning': 'true' } }),
-                fetch(`${API_BASE_URL}/metrics`, { headers: { 'ngrok-skip-browser-warning': 'true' } })
-            ]);
-
-            if (recsRes.ok && gapsRes.ok) {
-                const recommendations = await recsRes.json();
-                const gaps = await gapsRes.json();
-                const metrics = metricsRes.ok ? await metricsRes.json() : null;
-
+            // 2. Fetch Results - Try package first (most complete), then fallback to individual endpoints
+            const packageRes = await fetch('/api/proxy/content-gap?endpoint=package');
+            
+            if (packageRes.ok) {
+                const pkg = await packageRes.json();
+                console.log('Package response:', pkg); // Debug log
+                
                 setAnalysisData({
-                    recommendations,
-                    gaps,
-                    metrics
+                    recommendations: normalizeRecommendations(pkg.recommendations || pkg),
+                    gaps: normalizeGaps(pkg.gaps || pkg),
+                    metrics: pkg.metrics || pkg.metrics_data || null,
+                    stats: pkg.stats || pkg.statistics || null,
+                    raw: pkg // Keep raw data for debugging
                 });
                 setRunStatus("Complete");
             } else {
-                // Fallback to package if individual endpoints fail or if that's the preferred way
-                const packageRes = await fetch(`${API_BASE_URL}/package`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
-                if (packageRes.ok) {
-                    const pkg = await packageRes.json();
-                    setAnalysisData(pkg);
-                    setRunStatus("Complete");
-                } else {
-                    throw new Error("Failed to retrieve analysis results");
-                }
+                // Fallback to individual endpoints
+                setRunStatus("Fetching individual results...");
+                
+            const [recsRes, gapsRes, metricsRes] = await Promise.all([
+                    fetch('/api/proxy/content-gap?endpoint=recommendations'),
+                    fetch('/api/proxy/content-gap?endpoint=gaps'),
+                    fetch('/api/proxy/content-gap?endpoint=metrics')
+                ]);
+
+                const recommendations = recsRes.ok ? await recsRes.json() : null;
+                const gaps = gapsRes.ok ? await gapsRes.json() : null;
+                const metrics = metricsRes.ok ? await metricsRes.json() : null;
+
+                console.log('Individual responses:', { recommendations, gaps, metrics }); // Debug log
+
+                setAnalysisData({
+                    recommendations: normalizeRecommendations(recommendations),
+                    gaps: normalizeGaps(gaps),
+                    metrics: metrics,
+                    raw: { recommendations, gaps, metrics } // Keep raw data
+                });
+                setRunStatus("Complete");
             }
 
         } catch (err) {
+            console.error('Analysis error:', err);
             setError(err instanceof Error ? err.message : "An error occurred");
             setRunStatus("Failed");
         } finally {
@@ -168,6 +251,83 @@ export function ContentGapForm() {
         window.open(`${API_BASE_URL}/download/${type}`, '_blank');
     };
 
+    // Helper to get priority color
+    const getPriorityColor = (priority: string) => {
+        const p = priority?.toLowerCase() || 'medium';
+        if (p.includes('high') || p.includes('urgent') || p.includes('critical')) {
+            return 'bg-red-500/10 text-red-600 border-red-500/20';
+        } else if (p.includes('low') || p.includes('minor')) {
+            return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+        }
+        return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+    };
+
+    // Helper to get coverage color
+    const getCoverageColor = (coverage: string) => {
+        const c = coverage?.toLowerCase() || 'low';
+        if (c.includes('high') || c.includes('excellent') || c.includes('strong')) {
+            return 'text-green-600';
+        } else if (c.includes('medium') || c.includes('moderate') || c.includes('fair')) {
+            return 'text-yellow-600';
+        }
+        return 'text-red-600';
+    };
+
+    // Filter and sort recommendations
+    const getFilteredRecommendations = () => {
+        if (!Array.isArray(analysisData?.recommendations)) return [];
+        
+        let filtered = [...analysisData.recommendations];
+        
+        // Search filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter((rec: any) => {
+                const topic = (rec.topic || rec.title || rec.name || '').toLowerCase();
+                const desc = (rec.reason || rec.description || rec.details || '').toLowerCase();
+                return topic.includes(query) || desc.includes(query);
+            });
+        }
+        
+        // Priority filter
+        if (priorityFilter !== 'all') {
+            filtered = filtered.filter((rec: any) => {
+                const priority = (rec.priority || rec.urgency || 'medium').toLowerCase();
+                return priority.includes(priorityFilter.toLowerCase());
+            });
+        }
+        
+        // Sort
+        if (sortBy === 'priority') {
+            filtered.sort((a: any, b: any) => {
+                const priorityOrder: { [key: string]: number } = { 'high': 3, 'urgent': 4, 'critical': 5, 'medium': 2, 'low': 1 };
+                const aP = priorityOrder[(a.priority || 'medium').toLowerCase()] || 2;
+                const bP = priorityOrder[(b.priority || 'medium').toLowerCase()] || 2;
+                return bP - aP;
+            });
+        }
+        
+        return filtered;
+    };
+
+    // Filter and sort gaps
+    const getFilteredGaps = () => {
+        if (!Array.isArray(analysisData?.gaps)) return [];
+        
+        let filtered = [...analysisData.gaps];
+        
+        // Search filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter((gap: any) => {
+                const topic = (gap.topic || gap.title || gap.name || '').toLowerCase();
+                return topic.includes(query);
+            });
+        }
+        
+        return filtered;
+    };
+
     return (
         <div className="space-y-6">
             {/* API Status Indicator */}
@@ -175,8 +335,7 @@ export function ContentGapForm() {
                 <CheckCircle2 className="h-4 w-4 text-primary" />
                 <AlertTitle className="text-sm font-semibold">Live API Integration</AlertTitle>
                 <AlertDescription className="text-xs text-muted-foreground">
-                    This form connects to the Content Gap Analysis Agent at{" "}
-                    <code className="text-xs bg-muted px-1 py-0.5 rounded">busked-schematically-amiyah.ngrok-free.dev</code>
+                    This form connects to the Content Gap Analysis Agent via proxy route. All available fields from the API response will be displayed.
                 </AlertDescription>
             </Alert>
 
@@ -311,6 +470,41 @@ export function ContentGapForm() {
                             )}
                         </div>
                     </CardHeader>
+                    
+                    {/* Summary Statistics */}
+                    {analysisData && (
+                        <div className="px-6 pt-4 pb-2 border-b border-border/30">
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Lightbulb className="h-4 w-4 text-blue-600" />
+                                        <span className="text-xs font-medium text-muted-foreground">Recommendations</span>
+                                    </div>
+                                    <div className="text-2xl font-bold text-blue-600">
+                                        {Array.isArray(analysisData.recommendations) ? analysisData.recommendations.length : 0}
+                                    </div>
+                                </div>
+                                <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 border border-red-500/20 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Target className="h-4 w-4 text-red-600" />
+                                        <span className="text-xs font-medium text-muted-foreground">Content Gaps</span>
+                                    </div>
+                                    <div className="text-2xl font-bold text-red-600">
+                                        {Array.isArray(analysisData.gaps) ? analysisData.gaps.length : 0}
+                                    </div>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <BarChart3 className="h-4 w-4 text-purple-600" />
+                                        <span className="text-xs font-medium text-muted-foreground">Metrics</span>
+                                    </div>
+                                    <div className="text-2xl font-bold text-purple-600">
+                                        {analysisData.metrics ? Object.keys(analysisData.metrics).length : 0}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <CardContent className="flex-1 overflow-y-auto p-0">
                         {isLoading ? (
                             <div className="flex h-full items-center justify-center text-muted-foreground p-6">
@@ -328,80 +522,373 @@ export function ContentGapForm() {
                             <Tabs defaultValue="recommendations" className="h-full flex flex-col">
                                 <div className="px-6 pt-4">
                                     <TabsList className="w-full justify-start">
-                                        <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
-                                        <TabsTrigger value="gaps">Content Gaps</TabsTrigger>
-                                        <TabsTrigger value="metrics">Metrics</TabsTrigger>
+                                        <TabsTrigger value="recommendations" className="flex items-center gap-2">
+                                            <Lightbulb className="h-4 w-4" />
+                                            Recommendations
+                                            {Array.isArray(analysisData.recommendations) && (
+                                                <Badge variant="secondary" className="ml-1">
+                                                    {analysisData.recommendations.length}
+                                                </Badge>
+                                            )}
+                                        </TabsTrigger>
+                                        <TabsTrigger value="gaps" className="flex items-center gap-2">
+                                            <Target className="h-4 w-4" />
+                                            Content Gaps
+                                            {Array.isArray(analysisData.gaps) && (
+                                                <Badge variant="secondary" className="ml-1">
+                                                    {analysisData.gaps.length}
+                                                </Badge>
+                                            )}
+                                        </TabsTrigger>
+                                        <TabsTrigger value="metrics" className="flex items-center gap-2">
+                                            <BarChart3 className="h-4 w-4" />
+                                            Metrics
+                                        </TabsTrigger>
                                     </TabsList>
                                 </div>
 
                                 <TabsContent value="recommendations" className="flex-1 overflow-y-auto p-6 space-y-4">
-                                    {Array.isArray(analysisData.recommendations) && analysisData.recommendations.length > 0 ? (
-                                        analysisData.recommendations.map((rec: any, i: number) => (
-                                            <div key={i} className="bg-card/50 border border-border/50 rounded-xl p-4 shadow-sm space-y-2">
-                                                <div className="flex justify-between items-start">
-                                                    <h4 className="font-semibold text-sm">{rec.topic || `Recommendation ${i + 1}`}</h4>
-                                                    <Badge variant="outline">{rec.priority || 'Medium'}</Badge>
+                                    {/* Search and Filter Controls */}
+                                    <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Search recommendations..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="pl-9"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={priorityFilter}
+                                                onChange={(e) => setPriorityFilter(e.target.value)}
+                                                className="px-3 py-2 text-sm border border-border rounded-md bg-background"
+                                            >
+                                                <option value="all">All Priorities</option>
+                                                <option value="high">High Priority</option>
+                                                <option value="medium">Medium Priority</option>
+                                                <option value="low">Low Priority</option>
+                                            </select>
+                                            <select
+                                                value={sortBy}
+                                                onChange={(e) => setSortBy(e.target.value)}
+                                                className="px-3 py-2 text-sm border border-border rounded-md bg-background"
+                                            >
+                                                <option value="default">Default Order</option>
+                                                <option value="priority">Sort by Priority</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {(() => {
+                                        const filteredRecs = getFilteredRecommendations();
+                                        return filteredRecs.length > 0 ? (
+                                            <>
+                                                {filteredRecs.length < (analysisData.recommendations?.length || 0) && (
+                                                    <div className="text-xs text-muted-foreground mb-2">
+                                                        Showing {filteredRecs.length} of {analysisData.recommendations?.length || 0} recommendations
+                                                    </div>
+                                                )}
+                                                {filteredRecs.map((rec: any, i: number) => {
+                                                    // Extract all possible text fields
+                                                    const description = rec.reason || rec.description || rec.details || rec.explanation || rec.rationale || rec.why || rec.recommendation || rec.content || '';
+                                                    const topic = rec.topic || rec.title || rec.name || rec.subject || rec.content_topic || `Recommendation ${i + 1}`;
+                                                    const priority = rec.priority || rec.urgency || rec.importance || 'Medium';
+                                                    
+                                                    // Get any additional fields
+                                                    const additionalFields = Object.entries(rec)
+                                                        .filter(([key]) => !['topic', 'title', 'name', 'subject', 'content_topic', 'priority', 'urgency', 'importance', 'reason', 'description', 'details', 'explanation', 'rationale', 'why', 'recommendation', 'content'].includes(key))
+                                                        .filter(([_, value]) => value !== null && value !== undefined && value !== '')
+                                                        .map(([key, value]) => ({ key, value }));
+
+                                                    return (
+                                                        <div key={i} className="group bg-gradient-to-br from-card/80 to-card/50 border border-border/50 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 space-y-3">
+                                                            <div className="flex justify-between items-start gap-3">
+                                                                <div className="flex items-start gap-3 flex-1">
+                                                                    <div className="mt-1 p-2 rounded-lg bg-primary/10">
+                                                                        <Lightbulb className="h-4 w-4 text-primary" />
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <h4 className="font-semibold text-base mb-1 text-foreground">{topic}</h4>
+                                                                        {description && (
+                                                                            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{description}</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <Badge className={`shrink-0 ${getPriorityColor(priority)} border`}>
+                                                                    {priority}
+                                                                </Badge>
+                                                            </div>
+                                                            {additionalFields.length > 0 && (
+                                                                <details className="pt-2 border-t border-border/30">
+                                                                    <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                                                                        <Info className="h-3 w-3" />
+                                                                        Additional Details ({additionalFields.length})
+                                                                    </summary>
+                                                                    <div className="mt-2 space-y-2 pl-4">
+                                                                        {additionalFields.map(({ key, value }) => (
+                                                                            <div key={key} className="text-xs">
+                                                                                <span className="font-medium text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
+                                                                                <span className="text-muted-foreground">
+                                                                                    {typeof value === 'object' ? (
+                                                                                        <pre className="mt-1 text-xs bg-muted/50 p-2 rounded overflow-auto">
+                                                                                            {JSON.stringify(value, null, 2)}
+                                                                                        </pre>
+                                                                                    ) : (
+                                                                                        String(value)
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </details>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </>
+                                        ) : (
+                                            <div className="text-center text-muted-foreground py-12">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-3 rounded-full bg-muted/50">
+                                                        <Search className="h-6 w-6 text-muted-foreground/50" />
+                                                    </div>
+                                                    <p className="font-medium">No recommendations found</p>
+                                                    {(searchQuery || priorityFilter !== 'all') && (
+                                                        <p className="text-xs">Try adjusting your filters</p>
+                                                    )}
+                                                    {analysisData.raw && (
+                                                        <details className="mt-4 text-left">
+                                                            <summary className="cursor-pointer text-xs text-primary hover:underline">Debug: View raw response</summary>
+                                                            <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-40">
+                                                                {JSON.stringify(analysisData.raw, null, 2)}
+                                                            </pre>
+                                                        </details>
+                                                    )}
                                                 </div>
-                                                <p className="text-sm text-muted-foreground">{rec.reason || rec.description || "No description provided."}</p>
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-center text-muted-foreground py-8">No recommendations found.</div>
-                                    )}
+                                        );
+                                    })()}
                                 </TabsContent>
 
                                 <TabsContent value="gaps" className="flex-1 overflow-y-auto p-6 space-y-4">
-                                    {Array.isArray(analysisData.gaps) && analysisData.gaps.length > 0 ? (
-                                        analysisData.gaps.map((gap: any, i: number) => (
-                                            <div key={i} className="bg-card/50 border border-border/50 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <Target className="h-5 w-5 text-destructive/70" />
-                                                    <div>
-                                                        <h4 className="font-semibold text-sm">{gap.topic || `Gap ${i + 1}`}</h4>
-                                                        <p className="text-xs text-muted-foreground">Current Coverage: {gap.current_coverage || 'Low'}</p>
+                                    {/* Search Control */}
+                                    <div className="mb-4">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Search gaps..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="pl-9"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {(() => {
+                                        const filteredGaps = getFilteredGaps();
+                                        return filteredGaps.length > 0 ? (
+                                            <>
+                                                {filteredGaps.length < (analysisData.gaps?.length || 0) && (
+                                                    <div className="text-xs text-muted-foreground mb-2">
+                                                        Showing {filteredGaps.length} of {analysisData.gaps?.length || 0} gaps
                                                     </div>
+                                                )}
+                                                {filteredGaps.map((gap: any, i: number) => {
+                                                    const topic = gap.topic || gap.title || gap.name || gap.subject || gap.content_topic || gap.gap_topic || `Gap ${i + 1}`;
+                                                    const currentCoverage = gap.current_coverage || gap.coverage || gap.current || gap.our_coverage || 'Low';
+                                                    const competitorCoverage = gap.competitor_coverage || gap.competitor || gap.competition_coverage || gap.their_coverage || '';
+                                                    
+                                                    // Get any additional fields
+                                                    const additionalFields = Object.entries(gap)
+                                                        .filter(([key]) => !['topic', 'title', 'name', 'subject', 'content_topic', 'gap_topic', 'current_coverage', 'coverage', 'current', 'our_coverage', 'competitor_coverage', 'competitor', 'competition_coverage', 'their_coverage'].includes(key))
+                                                        .filter(([_, value]) => value !== null && value !== undefined && value !== '')
+                                                        .map(([key, value]) => ({ key, value }));
+
+                                                    return (
+                                                        <div key={i} className="group bg-gradient-to-br from-card/80 to-card/50 border border-red-500/20 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 space-y-3">
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div className="flex items-start gap-3 flex-1">
+                                                                    <div className="mt-1 p-2 rounded-lg bg-red-500/10">
+                                                                        <Target className="h-4 w-4 text-red-600" />
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <h4 className="font-semibold text-base mb-2 text-foreground">{topic}</h4>
+                                                                        <div className="space-y-2">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="text-xs font-medium text-muted-foreground">Current Coverage:</span>
+                                                                                <Badge variant="outline" className={`text-xs ${getCoverageColor(currentCoverage)}`}>
+                                                                                    {currentCoverage}
+                                                                                </Badge>
+                                                                            </div>
+                                                                            {competitorCoverage && (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                                                                                    <span className="text-xs font-medium text-muted-foreground">Competitor:</span>
+                                                                                    <Badge variant="outline" className="text-xs text-green-600">
+                                                                                        {competitorCoverage}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <Badge variant="destructive" className="shrink-0">Gap</Badge>
+                                                            </div>
+                                                            {additionalFields.length > 0 && (
+                                                                <details className="pt-2 border-t border-border/30">
+                                                                    <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                                                                        <Info className="h-3 w-3" />
+                                                                        Additional Details ({additionalFields.length})
+                                                                    </summary>
+                                                                    <div className="mt-2 space-y-2 pl-4">
+                                                                        {additionalFields.map(({ key, value }) => (
+                                                                            <div key={key} className="text-xs">
+                                                                                <span className="font-medium text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>{' '}
+                                                                                <span className="text-muted-foreground">
+                                                                                    {typeof value === 'object' ? (
+                                                                                        <pre className="mt-1 text-xs bg-muted/50 p-2 rounded overflow-auto">
+                                                                                            {JSON.stringify(value, null, 2)}
+                                                                                        </pre>
+                                                                                    ) : (
+                                                                                        String(value)
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </details>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </>
+                                        ) : (
+                                            <div className="text-center text-muted-foreground py-12">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-3 rounded-full bg-muted/50">
+                                                        <Target className="h-6 w-6 text-muted-foreground/50" />
+                                                    </div>
+                                                    <p className="font-medium">No gaps detected</p>
+                                                    {searchQuery && (
+                                                        <p className="text-xs">Try adjusting your search</p>
+                                                    )}
+                                                    {analysisData.raw && (
+                                                        <details className="mt-4 text-left">
+                                                            <summary className="cursor-pointer text-xs text-primary hover:underline">Debug: View raw response</summary>
+                                                            <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-40">
+                                                                {JSON.stringify(analysisData.raw, null, 2)}
+                                                            </pre>
+                                                        </details>
+                                                    )}
                                                 </div>
-                                                <Badge variant="secondary">Gap</Badge>
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-center text-muted-foreground py-8">No gaps detected.</div>
-                                    )}
+                                        );
+                                    })()}
                                 </TabsContent>
 
                                 <TabsContent value="metrics" className="flex-1 overflow-y-auto p-6">
                                     {analysisData.metrics ? (
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {Object.entries(analysisData.metrics).map(([key, value]: [string, any]) => {
                                                 // Handle different value types
                                                 let displayValue: string;
+                                                    let isPercentage = false;
+                                                    let numericValue: number | null = null;
+                                                    
                                                 if (typeof value === 'number') {
-                                                    displayValue = value <= 1 ? (value * 100).toFixed(1) + '%' : value.toString();
+                                                        numericValue = value;
+                                                        if (value <= 1 && value >= 0) {
+                                                            displayValue = (value * 100).toFixed(1) + '%';
+                                                            isPercentage = true;
+                                                        } else {
+                                                            displayValue = value.toFixed(2);
+                                                        }
                                                 } else if (typeof value === 'object' && value !== null) {
-                                                    // Convert object to formatted string
                                                     displayValue = JSON.stringify(value, null, 2);
                                                 } else {
                                                     displayValue = String(value ?? 'N/A');
                                                 }
+                                                    
+                                                    // Determine color based on value
+                                                    let bgColor = 'from-blue-500/10 to-blue-600/5 border-blue-500/20 text-blue-600';
+                                                    if (isPercentage && numericValue !== null) {
+                                                        if (numericValue >= 0.8) {
+                                                            bgColor = 'from-green-500/10 to-green-600/5 border-green-500/20 text-green-600';
+                                                        } else if (numericValue >= 0.6) {
+                                                            bgColor = 'from-yellow-500/10 to-yellow-600/5 border-yellow-500/20 text-yellow-600';
+                                                        } else {
+                                                            bgColor = 'from-red-500/10 to-red-600/5 border-red-500/20 text-red-600';
+                                                        }
+                                                }
                                                 
                                                 return (
-                                                    <div key={key} className="bg-card/50 border border-border/50 rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-2">
-                                                        <span className="text-xs font-semibold uppercase text-muted-foreground">{key.replace(/_/g, ' ')}</span>
+                                                        <div key={key} className={`bg-gradient-to-br ${bgColor} border rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200`}>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <BarChart3 className="h-4 w-4" />
+                                                                <span className="text-xs font-semibold uppercase text-muted-foreground">
+                                                                    {key.replace(/_/g, ' ')}
+                                                                </span>
+                                                            </div>
                                                         {typeof value === 'object' && value !== null ? (
-                                                            <pre className="text-xs font-mono text-primary whitespace-pre-wrap text-center w-full">
+                                                                <pre className="text-xs font-mono whitespace-pre-wrap text-foreground bg-muted/30 p-3 rounded mt-2 overflow-auto max-h-40">
                                                                 {displayValue}
                                                             </pre>
                                                         ) : (
-                                                            <span className="text-2xl font-bold text-primary">
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-3xl font-bold">
                                                                 {displayValue}
                                                             </span>
+                                                                    {isPercentage && numericValue !== null && (
+                                                                        <div className="ml-2">
+                                                                            {numericValue >= 0.8 ? (
+                                                                                <Award className="h-4 w-4 text-green-600" />
+                                                                            ) : numericValue >= 0.6 ? (
+                                                                                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                                                                            ) : (
+                                                                                <AlertTriangle className="h-4 w-4 text-red-600" />
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                         )}
                                                     </div>
                                                 );
                                             })}
+                                            </div>
+                                            
+                                            {/* Stats Section */}
+                                            {analysisData.stats && (
+                                                <div className="mt-6 pt-6 border-t border-border/30">
+                                                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                                                        <Layers className="h-4 w-4" />
+                                                        Analysis Statistics
+                                                    </h3>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        {Object.entries(analysisData.stats).map(([key, value]: [string, any]) => (
+                                                            <div key={key} className="bg-muted/30 border border-border/50 rounded-lg p-4">
+                                                                <div className="text-xs font-medium text-muted-foreground mb-1 capitalize">
+                                                                    {key.replace(/_/g, ' ')}
+                                                                </div>
+                                                                <div className="text-2xl font-bold text-foreground">
+                                                                    {typeof value === 'number' ? value.toLocaleString() : String(value)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
-                                        <div className="text-center text-muted-foreground py-8">No metrics available.</div>
+                                        <div className="text-center text-muted-foreground py-12">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="p-3 rounded-full bg-muted/50">
+                                                    <BarChart3 className="h-6 w-6 text-muted-foreground/50" />
+                                                </div>
+                                                <p className="font-medium">No metrics available</p>
+                                            </div>
+                                        </div>
                                     )}
                                 </TabsContent>
                             </Tabs>
