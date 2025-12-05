@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Loader2,
@@ -295,28 +294,16 @@ export function CrossSellSuggestionForm() {
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="limit">Limit</Label>
-                                            <Input
-                                                id="limit"
-                                                type="number"
-                                                min="1"
-                                                max="20"
-                                                value={limit}
-                                                onChange={(e) => setLimit(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="use-ml" className="flex items-center gap-2">
-                                                <Checkbox
-                                                    id="use-ml"
-                                                    checked={useMl}
-                                                    onCheckedChange={(checked) => setUseMl(checked as boolean)}
-                                                />
-                                                Use ML
-                                            </Label>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="limit">Limit</Label>
+                                        <Input
+                                            id="limit"
+                                            type="number"
+                                            min="1"
+                                            max="20"
+                                            value={limit}
+                                            onChange={(e) => setLimit(e.target.value)}
+                                        />
                                     </div>
                                 </div>
 
