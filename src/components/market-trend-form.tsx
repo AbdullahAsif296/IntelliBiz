@@ -57,8 +57,7 @@ export function MarketTrendForm() {
         setError(null);
 
         try {
-            // Note: Assuming /analyze endpoint based on project patterns, though user provided base URL
-            const response = await fetch('https://minahilasif222.pythonanywhere.com/analyze', {
+            const response = await fetch('/api/proxy/market-trend', {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json',
@@ -71,7 +70,8 @@ export function MarketTrendForm() {
             });
 
             if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || `API error: ${response.status}`);
             }
 
             const data = await response.json();
